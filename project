@@ -1,0 +1,95 @@
+
+
+CREATE TABLE Stores (
+    Store_ID VARCHAR(10) PRIMARY KEY,
+    Region VARCHAR(50)
+);
+
+CREATE TABLE Products (
+    Product_ID VARCHAR(10) PRIMARY KEY,
+    Category VARCHAR(50),
+    Seasonality VARCHAR(20)
+);
+
+CREATE TABLE Sales (
+    Sale_Date DATE,
+    Store_ID VARCHAR(10),
+    Product_ID VARCHAR(10),
+    Units_Sold INT,
+    Discount DECIMAL(5,2),
+    Weather_Condition VARCHAR(20),
+    Holiday_Promotion BOOLEAN,
+    FOREIGN KEY (Store_ID) REFERENCES Stores(Store_ID),
+    FOREIGN KEY (Product_ID) REFERENCES Products(Product_ID)
+);
+
+CREATE TABLE Inventory (
+    Inv_Date DATE,
+    Product_ID VARCHAR(10),
+    Store_ID VARCHAR(10),
+    Inventory_Level INT,
+    Units_Ordered INT,
+    Demand_Forecast DECIMAL(10,2),
+    Price DECIMAL(10,2),
+    Competitor_Pricing DECIMAL(10,2),
+    FOREIGN KEY (Product_ID) REFERENCES Products(Product_ID),
+    FOREIGN KEY (Store_ID) REFERENCES Stores(Store_ID)
+);
+
+-- ----------------------------------------
+-- 🧮 2. Analytics & Insights Queries
+-- ----------------------------------------
+
+-- A. Stock Level Report
+SELECT Store_ID, Product_ID, Inventory_Level, Units_Sold, Units_Ordered
+FROM Inventory
+JOIN Sales ON Inventory.Product_ID = Sales.Product_ID
+WHERE Inv_Date = '2022-01-01';
+
+-- B. Low Inventory Detection (below 80% of ordered)
+SELECT Product_ID, Store_ID, Inventory_Level
+FROM Inventory
+WHERE Inventory_Level < Units_Ordered * 0.8;
+
+-- C. Reorder Point Estimation (based on average past demand)
+SELECT Product_ID, AVG(Units_Sold) * 1.2 AS Recommended_Reorder_Point
+FROM Sales
+GROUP BY Product_ID;
+
+-- D. Inventory Turnover Ratio
+SELECT Product_ID,
+       SUM(Units_Sold) / NULLIF(AVG(Inventory_Level), 0) AS Inventory_Turnover
+FROM Sales
+JOIN Inventory ON Sales.Product_ID = Inventory.Product_ID
+GROUP BY Product_ID;
+
+-- E. Summary KPI Report
+SELECT
+  COUNT(CASE WHEN Units_Sold > Demand_Forecast THEN 1 END) * 100.0 / COUNT(*) AS Stockout_Rate,
+  AVG(Inventory_Level) AS Avg_Stock_Level
+FROM Inventory
+JOIN Sales ON Inventory.Product_ID = Sales.Product_ID;
+
+-- F. Fast-Selling Products (Top 5)
+SELECT Product_ID, SUM(Units_Sold) AS Total_Sold
+FROM Sales
+GROUP BY Product_ID
+ORDER BY Total_Sold DESC
+LIMIT 5;
+
+-- G. Slow-Moving Inventory
+SELECT Inventory.Product_ID, Inventory_Level
+FROM Inventory
+JOIN Sales ON Inventory.Product_ID = Sales.Product_ID
+WHERE Units_Sold < 0.5 * Demand_Forecast;
+
+-- H. Overstock Alert (Inventory > 150% of forecast)
+SELECT Product_ID, Inventory_Level, Demand_Forecast
+FROM Inventory
+WHERE Inventory_Level > 1.5 * Demand_Forecast;
+
+-- I. Seasonal Demand Forecast
+SELECT p.Category, p.Seasonality, AVG(Demand_Forecast) AS Avg_Demand
+FROM Inventory i
+JOIN Products p ON i.Product_ID = p.Product_ID
+GROUP BY p.Category, p.Seasonality;
